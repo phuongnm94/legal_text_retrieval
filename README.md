@@ -7,6 +7,8 @@ This system contains 2 steps:
 ![thissys](images/coliee3.drawio.png)
 ## Environments
 ```bash 
+git clone https://github.com/vncorenlp/VnCoreNLP.git vncorenlp_data # for vncorebnlp tokenize lib
+
 conda create -n legal_retrieval_env python=3.8
 conda activate legal_retrieval_env
 pip install -r requirements.txt
