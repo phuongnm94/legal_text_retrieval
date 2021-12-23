@@ -1,0 +1,16 @@
+sklearn
+nltk
+gensim
+pandas
+fugashi
+mecab-python3
+unidic-lite
+transformers==4.3.2
+openpyxl
+torch
+xlwt
+datasets
+sentencepiece
+protobuf
+rank_bm25
+seaborn
