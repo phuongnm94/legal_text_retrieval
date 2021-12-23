@@ -14,3 +14,4 @@ sentencepiece
 protobuf
 rank_bm25
 seaborn
+vncorenlp

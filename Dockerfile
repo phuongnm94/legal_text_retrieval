@@ -5,9 +5,12 @@ FROM nvidia/cuda:11.0-base
 CMD nvidia-smi
 
 WORKDIR /app
+ENV DEBIAN_FRONTEND=noninteractive
 
 #set up environment
 RUN apt update && apt install -y --no-install-recommends \
+    tzdata \
+    default-jdk \
     git \
     build-essential \
     python3-dev \
@@ -15,13 +18,13 @@ RUN apt update && apt install -y --no-install-recommends \
     python3-setuptools \
     unzip
 
-RUN apt install -y default-jdk
-    
 RUN pip3 -q install pip --upgrade
 
 # install python environments 
 COPY requirements.txt /app/requirements.txt
 RUN pip3 install -r /app/requirements.txt
+
+RUN git clone https://github.com/vncorenlp/VnCoreNLP vncorenlp_data
 
 #copies the applicaiton from local path to container path
 COPY . /app
