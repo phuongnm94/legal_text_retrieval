@@ -13,7 +13,8 @@ conda create -n legal_retrieval_env python=3.8
 conda activate legal_retrieval_env
 pip install -r requirements.txt
 ```
-## Run 
+## Run  
+
 1. Generate data from folder `data/zac2021-ltr-data/` containing `public_test_question.json` and `train_question_answer.json`
 
 
@@ -36,6 +37,10 @@ pip install -r requirements.txt
    ```
     >Note: 
     >   This script will load model and run prediction, pls check the variable `model_configs` in file `src/infer.py` to modify. 
+
+
+Try our example on google colab [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/phuongnm-bkhn/legal_text_retrieval/blob/master/scripts/legal_text_retrieval.ipynb)
+ 
     
 ##  License
 MIT-licensed. 
