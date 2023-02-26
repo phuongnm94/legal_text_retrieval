@@ -1,0 +1,6 @@
+data/
+settings/
+lightning_logs/
+libs/
+**.log
+env_coliee/
