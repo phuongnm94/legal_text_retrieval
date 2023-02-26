@@ -1,0 +1,45 @@
+{
+    "python.autoComplete.extraPaths": [
+        "${workspaceFolder}/src"
+    ],
+    "python.linting.pylintArgs": [
+        "--errors-only",
+        "--generated-members=numpy.* ,torch.* ,cv2.* , cv.*"
+    ],
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/src"
+    ],
+    "files.watcherExclude":{
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/node_modules/**": true,
+        "**/.hg/store/**": true,
+        "**/coliee3_2020/**": true,
+        "**/data2019/**": true,
+        "**/data2020/**": true,
+        "**/transformers_/**": true,
+        "**/trash_/**": true,
+        "**/settings/**": true
+    },
+    "python.languageServer": "Pylance",
+    "python.workspaceSymbols.exclusionPatterns": [
+        "**/site-packages/**",
+        "**/dummy_pt_objects.py"
+    ],
+    "python.linting.ignorePatterns": [
+        ".vscode/*.py",
+        "**/site-packages/**/*.py",
+        "**/dummy_pt_objects.py"
+    ],
+    "explorer.autoReveal": false,
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/CVS": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true,
+        "env_*":true
+
+    }
+}

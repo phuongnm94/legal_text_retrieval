@@ -4,3 +4,4 @@ lightning_logs/
 libs/
 **.log
 env_coliee/
+**/__pycache__/
