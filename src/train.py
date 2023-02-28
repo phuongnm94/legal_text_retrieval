@@ -8,6 +8,8 @@ from model import RelevantDocClassifier
 import pandas as pd
 from transformers import AutoTokenizer, AutoConfig
 from pytorch_lightning.callbacks import ModelCheckpoint
+import pickle
+import os
 
 
 class ColieePreprocessor:
@@ -46,6 +48,7 @@ if __name__=="__main__":
     parser.add_argument("--max_seq_length",  type=int, default=512, help="Max seq length for truncating.")
     parser.add_argument("--no_train", action="store_true", default=False, help="Do not training.")
     parser.add_argument("--no_test", action="store_true", default=False, help="Do not test.")
+    parser.add_argument("--no_dev", action="store_true", default=False, help="Do not dev at last.")
     parser.add_argument("--gpus", nargs='+', default=[0], type=int, help="Id of gpus for training")
     parser.add_argument("--ckpt_steps", default=1000, type=int, help="number of training steps for each checkpoint.")
 
@@ -73,6 +76,8 @@ if __name__=="__main__":
     train_loader = DataLoader(df_train.values, batch_size=opts.batch_size, collate_fn=coliee_data_preprocessor, shuffle=True)
     df_dev = pd.read_csv(f"{opts.data_dir}/dev.csv")
     dev_loader = DataLoader(df_dev.values, batch_size=opts.batch_size, collate_fn=coliee_data_preprocessor, shuffle=True)
+    df_test = pd.read_csv(f"{opts.data_dir}/test.csv")
+    test_loader = DataLoader(df_test.values, batch_size=opts.batch_size, collate_fn=coliee_data_preprocessor, shuffle=True)
 
     # model 
     if not opts.pretrained_checkpoint: 
@@ -93,12 +98,37 @@ if __name__=="__main__":
 
     if not opts.no_train:
         trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=dev_loader)
-    if not opts.no_test:
-        df_test = pd.read_csv(f"{opts.data_dir}/test.csv")
-        test_loader = DataLoader(df_test.values, batch_size=opts.batch_size, collate_fn=coliee_data_preprocessor, shuffle=True)
-        trainer.test(model, test_loader)
 
-    # df_test = pd.read_csv(f"{opts.data_dir}/test.csv")
-    # test_loader = DataLoader(df_test.values, batch_size=opts.batch_size, collate_fn=coliee_data_preprocessor, shuffle=True)
-    # x = trainer.predict(model, test_loader,return_predictions=True, ckpt_path=opts.pretrained_checkpoint)
-    # print(x)
+    # for enssemble multi checkpoints 
+    pretrained_checkpoint_list = glob.glob(f"{opts.log_dir}/*.ckpt") 
+    for data_storage in [df_dev, df_test]: 
+        if opts.no_test and data_storage==df_test:
+            continue
+        if opts.no_dev and data_storage==df_dev:
+            continue
+        
+        all_predictions = []
+        all_miss_q = set()
+        best_f2_ret = {'retrieved': 0, 'valid_f2': 0}
+        best_predictions = {'retrieved': 0, 'valid_f2': 0}
+        best_miss = set()
+
+        data_loader = DataLoader(data_storage.values, batch_size=opts.batch_size, collate_fn=coliee_data_preprocessor, shuffle=True)
+        for ckpt in pretrained_checkpoint_list:
+            model.result_logger.info(f"==== Predict ({ckpt}) ====")
+            predictions_cache_name = ckpt+f".{data_loader.dataset[0][1][:3]}.pred.pkl"
+            if not os.path.exists(predictions_cache_name):
+                predictions = trainer.predict(model, data_loader, ckpt_path=ckpt)
+                pickle.dump(predictions, open(predictions_cache_name, "wb")) # cached prediction 
+            else:
+                predictions = pickle.load(open(predictions_cache_name, "rb"))
+
+            cur_checkpoint_ret = model.validation_epoch_end(predictions, no_log_tensorboard=True)
+            model.result_logger.info(f"{cur_checkpoint_ret}")
+            all_miss_q = all_miss_q.union(set(cur_checkpoint_ret['miss_q']))
+            if best_f2_ret["valid_f2"] < cur_checkpoint_ret['valid_f2']:
+                best_predictions = predictions
+                best_miss =  set(cur_checkpoint_ret['miss_q'])
+            all_predictions += predictions 
+        out = model.validation_epoch_end(all_predictions, no_log_tensorboard=True, main_prediction_enss=(best_miss, best_predictions))
+        model.result_logger.info(f"{out}") 
