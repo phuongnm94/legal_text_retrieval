@@ -115,69 +115,6 @@ if __name__=="__main__":
     data_sources = []
     if not opts.no_dev: data_sources.append(dev_loader)
     if not opts.no_test: data_sources.append(test_loader);  data_sources.append(test2_loader)
-    
-    # for data_loader in data_sources: 
-    #     all_predictions = []
-    #     result_combination = []
-    #     all_miss_q = set()
-    #     best_f2_ret = {'retrieved': 0, 'valid_f2': 0, 'valid_p': 0,'valid_r': 0, 'miss_q': [1]*10000}
-    #     best_predictions = {'retrieved': 0, 'valid_f2': 0, 'valid_p': 0,'valid_r': 0, 'miss_q':[]}
-    #     best_miss = set()
-    #     data_query_id = data_loader.dataset[0][1][:3]
-
-    #     for ckpt in pretrained_checkpoint_list:
-    #         model.result_logger.info(f"==== Predict ({ckpt}) ====")
-    #         predictions_cache_name = ckpt+f".{data_query_id}.pred.pkl"
-    #         if not os.path.exists(predictions_cache_name):
-    #             predictions = trainer.predict(model, data_loader, ckpt_path=ckpt)
-    #             pickle.dump(predictions, open(predictions_cache_name, "wb")) # cached prediction 
-    #         else:
-    #             predictions = pickle.load(open(predictions_cache_name, "rb"))+ pickle.load(open(predictions_cache_name.replace("R02", "R03"), "rb"))
-
-    #         cur_checkpoint_ret = model.validation_epoch_end(predictions, no_log_tensorboard=True)
-    #         cur_checkpoint_ret.pop('detail_pred')
-    #         model.result_logger.info(f"{cur_checkpoint_ret}")
-    #         all_miss_q = all_miss_q.union(set(cur_checkpoint_ret['miss_q']))
-
-    #         result_combination.append((ckpt, cur_checkpoint_ret, cur_checkpoint_ret['miss_q'], predictions))
-        
-    #     # combination results 
-    #     result_combination.sort(key=lambda x: x[1]['valid_f2'], reverse=True) 
-
-    #     best_combination = [result_combination[0]]
-    #     best_f2 = result_combination[0][1]['valid_p']
-    #     best_out_detail_pred = None
-    #     main_prediction_result = [e for e in result_combination if "epoch=2-step=10964" in e[0]][0]
-    #     for i in range(1, len(result_combination)):
-    #         cur_combination = best_combination +  [result_combination[i]]
-    #         model.result_logger.info(f"==== Predict () ====")
-    #         model.result_logger.info([e[0] for e in cur_combination ])
-
-    #         all_preds = []
-    #         for e in cur_combination:
-    #             all_preds += e[3] 
-            
-    #         out = model.validation_epoch_end(all_preds, no_log_tensorboard=True, main_prediction_enss=(main_prediction_result[2], main_prediction_result[3]) )
-            
-    #         if  best_f2 < out['valid_f2'] :
-    #             model.result_logger.info(f"Combined {cur_combination[-1][0]} with best f2 = {out['valid_f2']}")
-    #             best_combination.append(result_combination[i])
-    #             best_f2 = out['valid_f2']
-    #             best_out_detail_pred = out['detail_pred']
-            
-    #         # logging  
-    #         out.pop('detail_pred')
-    #         model.result_logger.info(f"{out}") 
-
-    #     model.result_logger.info("="*80) 
-        
-    #     # log
-    #     # json.dump(out['detail_pred'], open(f'{opts.log_dir}/{data_query_id}.detail_pred.json', 'wt'), ensure_ascii=False)
-    #     generate_file_submission(best_out_detail_pred, 
-    #                              f"{opts.log_dir}/CAPTAIN.{opts.file_output_id}.{data_query_id}.tsv", 
-    #                              key_cids="pred_c_ids", 
-    #                              key_scores="pred_c_scores")
-        
 
     for data_loader in data_sources: 
         all_predictions = []
