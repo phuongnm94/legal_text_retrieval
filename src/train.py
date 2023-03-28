@@ -1,9 +1,12 @@
 import argparse
 import glob
+import json
 from pytorch_lightning import Trainer
 
 import torch
 from torch.utils.data.dataloader import DataLoader
+from enss import enssemble_prediction, generate_file_submission
+from evaluate import evaluate
 from model import RelevantDocClassifier
 import pandas as pd
 from transformers import AutoTokenizer, AutoConfig
@@ -29,7 +32,7 @@ class ColieePreprocessor:
 
         labels = torch.LongTensor([e[0] for e in mini_batch])
 
-        return (input_text_pair_ids, labels, question_ids, c_ids)
+        return ({'input_text_pair_ids': input_text_pair_ids}, labels, question_ids, c_ids)
 
 if __name__=="__main__":
 
@@ -51,6 +54,9 @@ if __name__=="__main__":
     parser.add_argument("--no_dev", action="store_true", default=False, help="Do not dev at last.")
     parser.add_argument("--gpus", nargs='+', default=[0], type=int, help="Id of gpus for training")
     parser.add_argument("--ckpt_steps", default=1000, type=int, help="number of training steps for each checkpoint.")
+    parser.add_argument("--file_output_id", default="allEnss", type=str, help="Id of submission")
+    parser.add_argument("--civi_code_path", default="data/parsed_civil_code/en_civil_code.json", type=str, help="civil code path")
+    parser.add_argument("--main_enss_path", default="settings/bert-base-japanese-whole-word-masking_5ckpt_150-newE5Seq512L2e-5/datout/test_{}_5_80_0015.txt", type=str, help="Id of submission")
 
     opts = parser.parse_args()
     if opts.pretrained_checkpoint is not None and not opts.pretrained_checkpoint.endswith(".ckpt"):
@@ -60,7 +66,7 @@ if __name__=="__main__":
     # load pretrained_checkpoint if it is set 
     if opts.pretrained_checkpoint:
         tokenizer = AutoTokenizer.from_pretrained(opts.log_dir, use_fast=True, config=AutoConfig.from_pretrained(opts.log_dir))
-        model = RelevantDocClassifier.load_from_checkpoint(opts.pretrained_checkpoint, tokenizer=tokenizer)
+        model = RelevantDocClassifier.load_from_checkpoint(opts.pretrained_checkpoint, args=opts)
         max_seq_length=model.args.max_seq_length
     else:
         config = AutoConfig.from_pretrained(opts.model_name_or_path)
@@ -78,10 +84,14 @@ if __name__=="__main__":
     dev_loader = DataLoader(df_dev.values, batch_size=opts.batch_size, collate_fn=coliee_data_preprocessor, shuffle=True)
     df_test = pd.read_csv(f"{opts.data_dir}/test.csv")
     test_loader = DataLoader(df_test.values, batch_size=opts.batch_size, collate_fn=coliee_data_preprocessor, shuffle=True)
+    df_test2 = pd.read_csv(f"{opts.data_dir}/test_submit.csv")
+    test2_loader = DataLoader(df_test2.values, batch_size=opts.batch_size, collate_fn=coliee_data_preprocessor, shuffle=True)
 
     # model 
     if not opts.pretrained_checkpoint: 
-        model = RelevantDocClassifier(opts, tokenizer=tokenizer, data_train_size=len(train_loader))
+        model = RelevantDocClassifier(opts, data_train_size=len(train_loader))
+    else:
+        model.data_train_size = len(train_loader)
     
     # trainer
     checkpoint_callback = ModelCheckpoint(dirpath=opts.log_dir, save_top_k=opts.max_keep_ckpt, 
@@ -101,22 +111,86 @@ if __name__=="__main__":
 
     # for enssemble multi checkpoints 
     pretrained_checkpoint_list = glob.glob(f"{opts.log_dir}/*.ckpt") 
-    for data_storage in [df_dev, df_test]: 
-        if opts.no_test and data_storage==df_test:
-            continue
-        if opts.no_dev and data_storage==df_dev:
-            continue
-        
-        all_predictions = []
-        all_miss_q = set()
-        best_f2_ret = {'retrieved': 0, 'valid_f2': 0}
-        best_predictions = {'retrieved': 0, 'valid_f2': 0}
-        best_miss = set()
+    model.result_logger.info(pretrained_checkpoint_list)
+    data_sources = []
+    if not opts.no_dev: data_sources.append(dev_loader)
+    if not opts.no_test: data_sources.append(test_loader);  data_sources.append(test2_loader)
+    
+    # for data_loader in data_sources: 
+    #     all_predictions = []
+    #     result_combination = []
+    #     all_miss_q = set()
+    #     best_f2_ret = {'retrieved': 0, 'valid_f2': 0, 'valid_p': 0,'valid_r': 0, 'miss_q': [1]*10000}
+    #     best_predictions = {'retrieved': 0, 'valid_f2': 0, 'valid_p': 0,'valid_r': 0, 'miss_q':[]}
+    #     best_miss = set()
+    #     data_query_id = data_loader.dataset[0][1][:3]
 
-        data_loader = DataLoader(data_storage.values, batch_size=opts.batch_size, collate_fn=coliee_data_preprocessor, shuffle=True)
+    #     for ckpt in pretrained_checkpoint_list:
+    #         model.result_logger.info(f"==== Predict ({ckpt}) ====")
+    #         predictions_cache_name = ckpt+f".{data_query_id}.pred.pkl"
+    #         if not os.path.exists(predictions_cache_name):
+    #             predictions = trainer.predict(model, data_loader, ckpt_path=ckpt)
+    #             pickle.dump(predictions, open(predictions_cache_name, "wb")) # cached prediction 
+    #         else:
+    #             predictions = pickle.load(open(predictions_cache_name, "rb"))+ pickle.load(open(predictions_cache_name.replace("R02", "R03"), "rb"))
+
+    #         cur_checkpoint_ret = model.validation_epoch_end(predictions, no_log_tensorboard=True)
+    #         cur_checkpoint_ret.pop('detail_pred')
+    #         model.result_logger.info(f"{cur_checkpoint_ret}")
+    #         all_miss_q = all_miss_q.union(set(cur_checkpoint_ret['miss_q']))
+
+    #         result_combination.append((ckpt, cur_checkpoint_ret, cur_checkpoint_ret['miss_q'], predictions))
+        
+    #     # combination results 
+    #     result_combination.sort(key=lambda x: x[1]['valid_f2'], reverse=True) 
+
+    #     best_combination = [result_combination[0]]
+    #     best_f2 = result_combination[0][1]['valid_p']
+    #     best_out_detail_pred = None
+    #     main_prediction_result = [e for e in result_combination if "epoch=2-step=10964" in e[0]][0]
+    #     for i in range(1, len(result_combination)):
+    #         cur_combination = best_combination +  [result_combination[i]]
+    #         model.result_logger.info(f"==== Predict () ====")
+    #         model.result_logger.info([e[0] for e in cur_combination ])
+
+    #         all_preds = []
+    #         for e in cur_combination:
+    #             all_preds += e[3] 
+            
+    #         out = model.validation_epoch_end(all_preds, no_log_tensorboard=True, main_prediction_enss=(main_prediction_result[2], main_prediction_result[3]) )
+            
+    #         if  best_f2 < out['valid_f2'] :
+    #             model.result_logger.info(f"Combined {cur_combination[-1][0]} with best f2 = {out['valid_f2']}")
+    #             best_combination.append(result_combination[i])
+    #             best_f2 = out['valid_f2']
+    #             best_out_detail_pred = out['detail_pred']
+            
+    #         # logging  
+    #         out.pop('detail_pred')
+    #         model.result_logger.info(f"{out}") 
+
+    #     model.result_logger.info("="*80) 
+        
+    #     # log
+    #     # json.dump(out['detail_pred'], open(f'{opts.log_dir}/{data_query_id}.detail_pred.json', 'wt'), ensure_ascii=False)
+    #     generate_file_submission(best_out_detail_pred, 
+    #                              f"{opts.log_dir}/CAPTAIN.{opts.file_output_id}.{data_query_id}.tsv", 
+    #                              key_cids="pred_c_ids", 
+    #                              key_scores="pred_c_scores")
+        
+
+    for data_loader in data_sources: 
+        all_predictions = []
+        result_combination = []
+        all_miss_q = set()
+        best_f2_ret = {'retrieved': 0, 'valid_f2': 0, 'valid_p': 0,'valid_r': 0, 'miss_q': [1]*10000}
+        best_predictions = {'retrieved': 0, 'valid_f2': 0, 'valid_p': 0,'valid_r': 0, 'miss_q':[]}
+        best_miss = set()
+        data_query_id = data_loader.dataset[0][1][:3]
+
         for ckpt in pretrained_checkpoint_list:
             model.result_logger.info(f"==== Predict ({ckpt}) ====")
-            predictions_cache_name = ckpt+f".{data_loader.dataset[0][1][:3]}.pred.pkl"
+            predictions_cache_name = ckpt+f".{data_query_id}.pred.pkl"
             if not os.path.exists(predictions_cache_name):
                 predictions = trainer.predict(model, data_loader, ckpt_path=ckpt)
                 pickle.dump(predictions, open(predictions_cache_name, "wb")) # cached prediction 
@@ -124,11 +198,76 @@ if __name__=="__main__":
                 predictions = pickle.load(open(predictions_cache_name, "rb"))
 
             cur_checkpoint_ret = model.validation_epoch_end(predictions, no_log_tensorboard=True)
+            cur_checkpoint_ret.pop('detail_pred')
             model.result_logger.info(f"{cur_checkpoint_ret}")
             all_miss_q = all_miss_q.union(set(cur_checkpoint_ret['miss_q']))
-            if best_f2_ret["valid_f2"] < cur_checkpoint_ret['valid_f2']:
+            if  len(best_f2_ret["miss_q"]) > len(cur_checkpoint_ret['miss_q']): #"=2-step=10964" in ckpt: # 
                 best_predictions = predictions
                 best_miss =  set(cur_checkpoint_ret['miss_q'])
-            all_predictions += predictions 
+                best_f2_ret = cur_checkpoint_ret
+            all_predictions += predictions
+
         out = model.validation_epoch_end(all_predictions, no_log_tensorboard=True, main_prediction_enss=(best_miss, best_predictions))
-        model.result_logger.info(f"{out}") 
+
+        # log
+        json.dump(out['detail_pred'], open(f'{opts.log_dir}/{data_query_id}.detail_pred.json', 'wt'), ensure_ascii=False)
+        print(out["valid_f2"])
+
+        # dump submission files: file retrieved and file top 100 candidates 
+        generate_file_submission(out['detail_pred'], 
+                                 f"{opts.log_dir}/CAPTAIN.{opts.file_output_id}.{data_query_id}.tsv", 
+                                 key_cids="pred_c_ids", 
+                                 key_scores="pred_c_scores")
+        
+        for q_id, q_info  in out['detail_pred'].items():
+            out['detail_pred'][q_id]["rank_c_ids"] = [] 
+            out['detail_pred'][q_id]["rank_c_scores"] = []
+            for e in q_info["rank"]:
+                if e[0] not in out['detail_pred'][q_id]["rank_c_ids"]:
+                    out['detail_pred'][q_id]["rank_c_ids"].append(e[0])
+                    out['detail_pred'][q_id]["rank_c_scores"].append(e[1])
+                    
+        generate_file_submission(out['detail_pred'], 
+                                 f"{opts.log_dir}/CAPTAIN.{opts.file_output_id}.{data_query_id}-L.tsv", 
+                                 key_cids="rank_c_ids", 
+                                 key_scores="rank_c_scores",
+                                 limited_prediction=100)
+        
+        # enssemble model 
+        main_pred_file = opts.main_enss_path.format(data_query_id)
+        if os.path.exists(main_pred_file):
+
+            def enss_procedure(main_pred_file, addition_pred_files, output_file, addition_limit=None, relevant_limit=None):
+
+                enss_out_data = enssemble_prediction(main_pred_file, 
+                                                    addition_pred_files, 
+                                                    addition_limit=addition_limit,
+                                                    relevant_limit=relevant_limit)
+                
+                # dump enssemble submission file 
+                generate_file_submission(enss_out_data, 
+                                        output_file, 
+                                        key_cids="pred_c_ids", 
+                                        key_scores="pred_c_scores")
+
+                # evaluate
+                input_test = f"data/COLIEE2023statute_data-English/train/riteval_{data_query_id}_en.xml"
+                if os.path.exists(input_test):
+                    evaluate(INPUT_TEST = input_test, 
+                            INPUT_PREDICTION=output_file, 
+                            USECASE_ONLY = False, 
+                            PARSED_CIVIL_CODE_PATH=opts.civi_code_path)
+
+            # enss
+            additional_pred_files = [f"{opts.log_dir}/CAPTAIN.{opts.file_output_id}.{data_query_id}.tsv"]
+            output_file = f"{opts.log_dir}/CAPTAIN.{opts.file_output_id}.{data_query_id}.enss.tsv"
+            enss_procedure(main_pred_file, additional_pred_files, output_file, addition_limit=1)
+
+            enss_procedure(main_pred_file.replace(".txt", "-L.txt"), 
+                           [e.replace(".tsv", "-L.tsv") for e in additional_pred_files], 
+                           output_file.replace(".tsv", "-L.tsv"), 
+                           relevant_limit=100)
+
+        out.pop('detail_pred')
+        model.result_logger.info(f"{out}")
+
