@@ -18,7 +18,11 @@
             "command": "extension.commandvariable.transform",
             "args": {
                 // "text": "bert-base-japanese-v22-150",
-                "text": "bert-base-japanese-whole-word-masking_150-newE5Seq512"
+                // "text": "bert-base-japanese-whole-word-masking_150-newE5Seq512"
+                // "text": "bert-base-japanese-v2_5ckpt_150-newE5Seq512L2e-5"
+                // "text": "bert-base-japanese-whole-word-masking_rerank"
+                // "text": "bert-base-japanese-whole-word-masking_fromckpt_step2Top10_150-newE5Seq512L1e-5"
+                "text": "bert-base-japanese-whole-word-masking_5ckpt_150-newE5Seq512L2e-5"
                 // "text": "bert-base-japanese-v2_150-newE5Seq512"
             }
         },
@@ -31,7 +35,26 @@
             }
         },
     ],
-    "configurations": [ 
+    "configurations": [  
+        {
+            "name": "---",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/xxx.py",
+            "cwd": "${workspaceFolder}/",
+            "console": "integratedTerminal",
+            "args": []
+        },
+        {
+            "name": "checking",
+            "type": "python",
+            "request": "launch",
+            // "program": "${workspaceFolder}/settings/bert-base-japanese-whole-word-masking_5ckpt_150-newE5Seq512L2e-5/models/enss.py",
+            "program": "/home/phuongnm/coliee/src/LSTM.py",
+            "cwd": "${workspaceFolder}/",
+            "console": "integratedTerminal",
+            "args": []
+        },
         {
             "name": "gen-data",
             "type": "python",
@@ -56,6 +79,7 @@
                 "R02",
                 "--test_ids", 
                 "R03",
+                // "R04",
                 // "R1",
                 // "--chunk_content_size",
                 // "150",
@@ -64,54 +88,37 @@
                 // "--faked_result",
                 // "../coliee3_2021/settings/task4_bert-base-japanese-whole-word-masking-tfidf5C15050E2-ja42/train_infer_ja/train_results_None.txt",
                 // "--test_file", 
-                // "${workspaceFolder}/coliee3_2021/Statute_TestData_jp.xml",
+                // "data/COLIEE2023statute_data-Japanese-test/TestData_jp.xml",
             ]
         },
-        // {
-        //     "name": "train-task3",
-        //     "type": "python",
-        //     "request": "launch",
-        //     "program": "${workspaceFolder}/src/run_glue.py",
-        //     "cwd": "${workspaceFolder}/src/",
-        //     "console": "integratedTerminal",
-        //     "args": [
-        //         "--model_name_or_path",
-        //         "xlm-roberta-base",
-        //         "--do_train",
-        //         "--do_eval",
-        //         "--num_label", 
-        //         "2",
-        //         "--eval_steps",
-        //         "200",
-        //         "--do_predict",
-        //         "--train_file",
-        //         "${input:PATH_DATA}/train.csv",
-        //         "--validation_file",
-        //         "${input:PATH_DATA}/dev.csv",
-        //         "--test_file",
-        //         "${input:PATH_DATA}/test.csv",
-        //         "--max_seq_length",
-        //         "300",
-        //         "--per_device_train_batch_size",
-        //         "16",
-        //         "--learning_rate",
-        //         "1e-5",
-        //         "--warmup_steps",
-        //         "0",
-        //         "--num_train_epochs",
-        //         "1",
-        //         "--save_total_limit",
-        //         "1",
-        //         "--logging_dir",
-        //         "settings/${input:SETTING_NAME}/models/tensorboard",
-        //         "--logging_steps",
-        //         "200",
-        //         "--output_dir",
-        //         "settings/${input:SETTING_NAME}/models/",
-        //         "--overwrite_output_dir"
-        //     ],
-        //     "justMyCode": false
-        // },
+        {
+            "name": "train-task4",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/train_task4.py",
+            "cwd": "${workspaceFolder}/",
+            "console": "integratedTerminal",
+            "args": [
+                "--data_dir",
+                "${workspaceFolder}/data/COLIEE2023statute_data-Japanese/train/",
+                "--model_name_or_path", 
+                // "cl-tohoku/bert-base-japanese-whole-word-masking",
+                "nlpaueb/legal-bert-base-uncased",
+                "--log_dir", 
+                "${workspaceFolder}/settings/${input:SETTING_NAME}_t4/models/",
+                "--max_epochs",
+                "50",
+                "--gpus", 
+                "1",
+                "--batch_size", "32", 
+                "--lr", "5e-6",
+                "--no_train"
+                // "--pretrained_checkpoint",
+                // "${workspaceFolder}/settings/${input:SETTING_NAME}/models/epoch=4-step=20805.ckpt",
+
+            ],
+            "justMyCode": false
+        },
         {
             "name": "train-task3-new",
             "type": "python",
@@ -125,9 +132,32 @@
                 "--model_name_or_path", 
                 "cl-tohoku/bert-base-japanese-v2",
                 "--log_dir", 
-                "${workspaceFolder}/settings/bert-base-japanese-v2_150-newE5Seq512/models/",
+                "${workspaceFolder}/settings/${input:SETTING_NAME}/models/",
                 // "--pretrained_checkpoint",
-                // "${workspaceFolder}/settings/bert-base-japanese-v2_150-newE5Seq512/models/epoch=4-step=20805.ckpt",
+                // "${workspaceFolder}/settings/${input:SETTING_NAME}/models/epoch=4-step=20805.ckpt",
+
+            ],
+            "justMyCode": false
+        },
+        {
+            "name": "train-task3-rerank",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/train_rerank.py",
+            "cwd": "${workspaceFolder}/",
+            "console": "integratedTerminal",
+            "args": [
+                "--data_dir",
+                "${workspaceFolder}/data/COLIEE2023statute_data-Japanese/data_ja_topk_150_r02_r03/",
+                "--model_name_or_path", 
+                "cl-tohoku/bert-base-japanese-whole-word-masking",
+                "--batch_size",
+                "2",
+                "--log_dir", 
+                "${workspaceFolder}/settings/${input:SETTING_NAME}/models/",
+                "--pretrained_checkpoint",
+                "settings/bert-base-japanese-whole-word-masking_rerank/models/",
+                "--no_train"
 
             ],
             "justMyCode": false
@@ -141,9 +171,10 @@
             "console": "integratedTerminal",
             "args": [
                 "--data_dir",
-                "${workspaceFolder}/data/COLIEE2023statute_data-Japanese/data_ja_topk_150_r02_r03/",
+                "${input:PATH_DATA}/",
                 "--model_name_or_path", 
-                "cl-tohoku/bert-base-japanese-v2",
+                "cl-tohoku/bert-base-japanese-whole-word-masking",
+                // "cl-tohoku/bert-base-japanese-v2",
                 "--log_dir", 
                 "${workspaceFolder}/settings/${input:SETTING_NAME}/models/",
                 "--pretrained_checkpoint",
@@ -151,7 +182,12 @@
                 // "--gpus",
                 // "1",
                 "--no_train",
-                // "--no_test"
+                // "--no_dev",
+                // "--no_test",
+                "--file_output_id", 
+                // "allEnssMissq",
+                // "allEnssBoostraping"
+                "bjpAll"
             ],
             "justMyCode": false
         }, 
